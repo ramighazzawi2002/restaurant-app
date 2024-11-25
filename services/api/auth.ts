@@ -18,6 +18,17 @@ interface User {
 // Mock user database
 const users: (User & { password: string })[] = [];
 
+// Add this interface and function
+interface UpdateProfileData {
+  fullName?: string;
+  phone?: string;
+  address?: string;
+  defaultPaymentMethod?: string;
+}
+
+// Add this to store user profiles
+const userProfiles: Record<string, UpdateProfileData> = {};
+
 export const login = async (credentials: LoginCredentials): Promise<User> => {
   // Simulate API delay
   await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -30,7 +41,10 @@ export const login = async (credentials: LoginCredentials): Promise<User> => {
 
   // Don't send password back
   const { password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
+  return {
+    ...userWithoutPassword,
+    ...userProfiles[credentials.email], // Include any saved profile data
+  };
 };
 
 export const signup = async (credentials: SignupCredentials): Promise<User> => {
@@ -55,4 +69,30 @@ export const signup = async (credentials: SignupCredentials): Promise<User> => {
   // Don't send password back
   const { password, ...userWithoutPassword } = newUser;
   return userWithoutPassword;
+};
+
+export const updateProfile = async (
+  email: string,
+  data: UpdateProfileData
+): Promise<User> => {
+  // Simulate API delay
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  const user = users.find((u) => u.email === email);
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Store profile data
+  userProfiles[email] = {
+    ...userProfiles[email],
+    ...data,
+  };
+
+  // Return updated user data
+  const { password, ...userWithoutPassword } = user;
+  return {
+    ...userWithoutPassword,
+    ...userProfiles[email],
+  };
 };

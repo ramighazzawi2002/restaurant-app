@@ -143,6 +143,16 @@ const HomeScreen = () => {
                   style={styles.menuItem}
                   onPress={() => {
                     setShowProfileMenu(false);
+                    navigation.navigate("Profile");
+                  }}
+                >
+                  <Ionicons name="person-outline" size={20} color="#333" />
+                  <Text style={styles.menuItemText}>My Profile</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowProfileMenu(false);
                     navigation.navigate("Orders");
                   }}
                 >

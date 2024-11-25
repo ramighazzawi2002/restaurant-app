@@ -10,6 +10,7 @@ import CartScreen from "./screens/cart";
 import CheckoutScreen from "./screens/checkout";
 import OrdersScreen from "./screens/orders";
 import FavoritesScreen from "./screens/favorites";
+import ProfileScreen from "./screens/profile";
 import { Provider } from "react-redux";
 import { store } from "./store";
 import { useSelector } from "react-redux";
@@ -105,6 +106,7 @@ function AppNavigator() {
         </>
       ) : (
         <>
+          <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="Checkout" component={CheckoutScreen} />
           <Stack.Screen name="Orders" component={OrdersScreen} />
           <Stack.Screen name="Favorites" component={FavoritesScreen} />
