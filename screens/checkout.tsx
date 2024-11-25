@@ -19,6 +19,7 @@ import {
 } from "../store/slices/cartSlice";
 import { useNavigation } from "@react-navigation/native";
 import { addOrder } from "../store/slices/ordersSlice";
+import { savePaymentMethod } from "../store/slices/authSlice";
 
 const CheckoutScreen = () => {
   const dispatch = useDispatch();
@@ -27,6 +28,35 @@ const CheckoutScreen = () => {
     useSelector((state: RootState) => state.cart);
   const [selectedPayment, setSelectedPayment] = useState("card");
   const [address, setAddress] = useState(deliveryAddress || "");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvc, setCvc] = useState("");
+  const [saveCard, setSaveCard] = useState(false);
+  const savedCards = useSelector(
+    (state: RootState) => state.auth.user?.savedCards || []
+  );
+  const [selectedSavedCard, setSelectedSavedCard] = useState(null);
+
+  const formatCardNumber = (text: string) => {
+    const cleaned = text.replace(/\s/g, "");
+    const groups = cleaned.match(/.{1,4}/g);
+    return groups ? groups.join(" ") : cleaned;
+  };
+
+  const formatExpiryDate = (text: string) => {
+    const cleaned = text.replace(/\D/g, "");
+    if (cleaned.length >= 2) {
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}`;
+    }
+    return cleaned;
+  };
+
+  const handleSavedCardSelect = (card) => {
+    setSelectedSavedCard(card);
+    setCardNumber(`•••• •••• •••• ${card.last4}`);
+    setExpiryDate(card.expiryDate);
+    setCvc("");
+  };
 
   const handlePlaceOrder = () => {
     if (orderType === "Delivery" && !address) {
@@ -34,7 +64,30 @@ const CheckoutScreen = () => {
       return;
     }
 
-    // Create new order
+    if (selectedPayment === "card") {
+      if (!selectedSavedCard) {
+        if (!cardNumber || !expiryDate || !cvc) {
+          Alert.alert("Error", "Please enter all card details");
+          return;
+        }
+
+        if (saveCard) {
+          dispatch(
+            savePaymentMethod({
+              cardNumber: cardNumber.replace(/\s/g, ""),
+              expiryDate,
+              last4: cardNumber.slice(-4),
+            })
+          );
+        }
+      } else {
+        if (!cvc) {
+          Alert.alert("Error", "Please enter CVC");
+          return;
+        }
+      }
+    }
+
     const newOrder = {
       id: Date.now().toString(),
       items,
@@ -120,6 +173,8 @@ const CheckoutScreen = () => {
         {/* Payment Method Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
+
+          {/* Card Payment Option */}
           <TouchableOpacity
             style={[
               styles.paymentOption,
@@ -130,6 +185,117 @@ const CheckoutScreen = () => {
             <Ionicons name="card-outline" size={24} color="#333" />
             <Text style={styles.paymentText}>Credit/Debit Card</Text>
           </TouchableOpacity>
+
+          {/* Saved Cards */}
+          {selectedPayment === "card" && savedCards.length > 0 && (
+            <View style={styles.savedCards}>
+              <Text style={styles.subsectionTitle}>Saved Cards</Text>
+              {savedCards.map((card, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.savedCard,
+                    selectedSavedCard?.last4 === card.last4 &&
+                      styles.selectedSavedCard,
+                  ]}
+                  onPress={() => handleSavedCardSelect(card)}
+                >
+                  <View style={styles.cardInfo}>
+                    <Ionicons name="card-outline" size={20} color="#007AFF" />
+                    <Text style={styles.savedCardText}>
+                      •••• •••• •••• {card.last4}
+                    </Text>
+                    <Text style={styles.cardExpiry}>
+                      Expires {card.expiryDate}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.newCardButton}
+                onPress={() => {
+                  setSelectedSavedCard(null);
+                  setCardNumber("");
+                  setExpiryDate("");
+                  setCvc("");
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                <Text style={styles.newCardText}>Use a new card</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Card Details */}
+          {selectedPayment === "card" && (
+            <View style={styles.cardDetails}>
+              {!selectedSavedCard ? (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Card Number"
+                    value={cardNumber}
+                    onChangeText={(text) =>
+                      setCardNumber(formatCardNumber(text))
+                    }
+                    maxLength={19}
+                    keyboardType="numeric"
+                  />
+                  <View style={styles.cardRow}>
+                    <TextInput
+                      style={[styles.input, styles.halfInput]}
+                      placeholder="MM/YY"
+                      value={expiryDate}
+                      onChangeText={(text) =>
+                        setExpiryDate(formatExpiryDate(text))
+                      }
+                      maxLength={5}
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      style={[styles.input, styles.halfInput]}
+                      placeholder="CVC"
+                      value={cvc}
+                      onChangeText={setCvc}
+                      maxLength={3}
+                      keyboardType="numeric"
+                      secureTextEntry
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.saveCardOption}
+                    onPress={() => setSaveCard(!saveCard)}
+                  >
+                    <View style={styles.checkbox}>
+                      {saveCard && (
+                        <Ionicons name="checkmark" size={16} color="#007AFF" />
+                      )}
+                    </View>
+                    <Text style={styles.saveCardText}>
+                      Save card for future purchases
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.savedCardCvcContainer}>
+                  <Text style={styles.savedCardCvcLabel}>
+                    Enter CVC for saved card
+                  </Text>
+                  <TextInput
+                    style={[styles.input, styles.cvcInput]}
+                    placeholder="CVC"
+                    value={cvc}
+                    onChangeText={setCvc}
+                    maxLength={3}
+                    keyboardType="numeric"
+                    secureTextEntry
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Cash Payment Option */}
           <TouchableOpacity
             style={[
               styles.paymentOption,
@@ -327,6 +493,96 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
+  },
+  cardDetails: {
+    marginTop: 16,
+  },
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  halfInput: {
+    flex: 0.47,
+  },
+  savedCards: {
+    marginTop: 12,
+  },
+  subsectionTitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  savedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  savedCardText: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  saveCardOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+    borderRadius: 4,
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveCardText: {
+    fontSize: 14,
+    color: "#333",
+  },
+  selectedSavedCard: {
+    borderColor: "#007AFF",
+    backgroundColor: "#007AFF15",
+  },
+  cardInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cardExpiry: {
+    marginLeft: 12,
+    color: "#666",
+    fontSize: 14,
+  },
+  newCardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    marginTop: 8,
+  },
+  newCardText: {
+    marginLeft: 8,
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  savedCardCvcContainer: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  savedCardCvcLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  cvcInput: {
+    width: "30%",
+    textAlign: "center",
   },
 });
 

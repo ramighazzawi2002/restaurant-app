@@ -3,7 +3,12 @@ import { CartItem } from "./cartSlice";
 
 export interface Order {
   id: string;
-  items: CartItem[];
+  items: {
+    id: number;
+    menuItemId: number;
+    name: string;
+    quantity: number;
+  }[];
   orderType: "Dine-in" | "Takeaway" | "Delivery";
   status:
     | "Received"
@@ -18,8 +23,11 @@ export interface Order {
   deliveryAddress?: string;
   paymentMethod: "card" | "cash";
   date: string;
-  rating?: number;
-  feedback?: string;
+  menuItemsRatings?: {
+    menuItemId: number;
+    rating: number;
+    review?: string;
+  }[];
 }
 
 interface OrdersState {
@@ -64,10 +72,45 @@ const ordersSlice = createSlice({
         order.feedback = action.payload.feedback;
       }
     },
+    addMenuItemRating: (
+      state,
+      action: PayloadAction<{
+        orderId: string;
+        menuItemId: number;
+        rating: number;
+        review?: string;
+      }>
+    ) => {
+      const order = state.orders.find((o) => o.id === action.payload.orderId);
+      if (order) {
+        if (!order.menuItemsRatings) {
+          order.menuItemsRatings = [];
+        }
+
+        const existingRating = order.menuItemsRatings.find(
+          (r) => r.menuItemId === action.payload.menuItemId
+        );
+
+        if (existingRating) {
+          existingRating.rating = action.payload.rating;
+          existingRating.review = action.payload.review;
+        } else {
+          order.menuItemsRatings.push({
+            menuItemId: action.payload.menuItemId,
+            rating: action.payload.rating,
+            review: action.payload.review,
+          });
+        }
+      }
+    },
   },
 });
 
-export const { addOrder, updateOrderStatus, addOrderRating } =
-  ordersSlice.actions;
+export const {
+  addOrder,
+  updateOrderStatus,
+  addOrderRating,
+  addMenuItemRating,
+} = ordersSlice.actions;
 
 export default ordersSlice.reducer;

@@ -37,6 +37,7 @@ const HomeScreen = () => {
   );
   const user = useSelector((state: RootState) => state.auth.user);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const orders = useSelector((state: RootState) => state.orders.orders);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,6 +60,27 @@ const HomeScreen = () => {
     fetchData();
   }, [dispatch]);
 
+  const getItemReviews = (menuItemId: number) => {
+    const reviews: { rating: number; review?: string }[] = [];
+    orders.forEach((order) => {
+      order.menuItemsRatings?.forEach((rating) => {
+        if (rating.menuItemId === menuItemId) {
+          reviews.push({
+            rating: rating.rating,
+            review: rating.review,
+          });
+        }
+      });
+    });
+    return reviews;
+  };
+
+  const calculateAverageRating = (reviews: { rating: number }[]) => {
+    if (reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, curr) => acc + curr.rating, 0);
+    return sum / reviews.length;
+  };
+
   const renderCategoryItem = ({ item: category }) => (
     <TouchableOpacity
       key={category.id}
@@ -74,22 +96,29 @@ const HomeScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderMenuItem = ({ item }) => (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.itemCard}
-      onPress={() => navigation.navigate("Details", { item })}
-    >
-      <Image source={{ uri: item.image }} style={styles.itemImage} />
-      <Text style={styles.itemName}>{item.name}</Text>
-      <Text style={styles.itemPrice}>${item.price}</Text>
-      <View style={styles.ratingContainer}>
-        <Ionicons name="star" size={16} color="#FFD700" />
-        <Text style={styles.rating}>{item.rating}</Text>
-        <Text style={styles.reviews}>({item.reviews})</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderMenuItem = ({ item }) => {
+    const itemReviews = getItemReviews(item.id);
+    const averageRating = calculateAverageRating(itemReviews);
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.itemCard}
+        onPress={() => navigation.navigate("Details", { item })}
+      >
+        <Image source={{ uri: item.image }} style={styles.itemImage} />
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemPrice}>${item.price}</Text>
+        <View style={styles.ratingContainer}>
+          <Ionicons name="star" size={16} color="#FFD700" />
+          <Text style={styles.rating}>
+            {averageRating > 0 ? averageRating.toFixed(1) : "New"}
+          </Text>
+          <Text style={styles.reviews}>({itemReviews.length})</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -315,9 +344,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     borderRadius: 12,
     padding: 12,
-    margin: "auto",
-    width: "48%",
+    width: "45%",
     marginBottom: 16,
+    marginHorizontal: 8,
   },
   itemImage: {
     width: "100%",
@@ -343,7 +372,9 @@ const styles = StyleSheet.create({
   },
   rating: {
     marginLeft: 4,
+    fontSize: 14,
     color: "#666",
+    fontWeight: "500",
   },
   quickActions: {
     flexDirection: "row",
@@ -376,9 +407,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   reviews: {
-    marginLeft: 4,
+    fontSize: 14,
     color: "#666",
-    fontSize: 12,
+    marginLeft: 4,
   },
   selectedCategory: {
     backgroundColor: "#007AFF15",
@@ -388,8 +419,6 @@ const styles = StyleSheet.create({
   menuGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
   },
   loginButton: {
     backgroundColor: "#007AFF",

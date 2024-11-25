@@ -8,16 +8,39 @@ import {
   Image,
   Modal,
   TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store";
-import { addOrderRating } from "../store/slices/ordersSlice";
+import { addOrderRating, addMenuItemRating } from "../store/slices/ordersSlice";
 import { addToCart } from "../store/slices/cartSlice";
 import { useNavigation } from "@react-navigation/native";
 
-const OrderStatusBadge = ({ status }) => {
+interface MenuItem {
+  id: number;
+  menuItemId: number;
+  name: string;
+  quantity: number;
+}
+
+interface Order {
+  id: string;
+  items: MenuItem[];
+  orderType: string;
+  status: string;
+  total: number;
+  date: string;
+  deliveryAddress?: string;
+  menuItemsRatings?: {
+    menuItemId: number;
+    rating: number;
+    review?: string;
+  }[];
+}
+
+const OrderStatusBadge = ({ status }: { status: string }) => {
   const getStatusColor = () => {
     switch (status) {
       case "Received":
@@ -44,168 +67,225 @@ const OrderStatusBadge = ({ status }) => {
   );
 };
 
+const RatingModal = ({
+  visible,
+  onClose,
+  onSubmit,
+  orderId,
+  menuItem,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (
+    orderId: string,
+    menuItemId: number,
+    rating: number,
+    review: string
+  ) => void;
+  orderId?: string;
+  menuItem?: MenuItem;
+}) => {
+  const [rating, setRating] = useState(0);
+  const [review, setReview] = useState("");
+
+  const handleSubmit = () => {
+    if (!orderId || !menuItem) {
+      return;
+    }
+
+    if (rating === 0) {
+      Alert.alert("Error", "Please select a rating");
+      return;
+    }
+
+    onSubmit(orderId, menuItem.menuItemId, rating, review);
+    setRating(0);
+    setReview("");
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Rate {menuItem?.name}</Text>
+          <View style={styles.ratingStars}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                <Ionicons
+                  name={star <= rating ? "star" : "star-outline"}
+                  size={32}
+                  color="#FFD700"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            style={styles.reviewInput}
+            placeholder="Write your review (optional)"
+            value={review}
+            onChangeText={setReview}
+            multiline
+            numberOfLines={4}
+          />
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={onClose}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.submitButton]}
+              onPress={handleSubmit}
+            >
+              <Text style={styles.submitButtonText}>Submit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 const OrdersScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const orders = useSelector((state: RootState) => state.orders.orders);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [rating, setRating] = useState(0);
-  const [feedback, setFeedback] = useState("");
+  const [selectedMenuItem, setSelectedMenuItem] = useState<
+    (MenuItem & { orderId: string }) | null
+  >(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
 
-  const handleReorder = (order) => {
-    order.items.forEach((item) => {
-      dispatch(addToCart({ ...item, id: Date.now() }));
-    });
-    navigation.navigate("Cart");
-  };
-
-  const handleRateOrder = (order) => {
-    setSelectedOrder(order);
-    setRating(order.rating || 0);
-    setFeedback(order.feedback || "");
+  const handleRateMenuItem = (orderId: string, menuItem: MenuItem) => {
+    setSelectedMenuItem({ ...menuItem, orderId });
     setShowRatingModal(true);
   };
 
-  const submitRating = () => {
-    if (selectedOrder) {
-      dispatch(
-        addOrderRating({
-          orderId: selectedOrder.id,
-          rating,
-          feedback,
-        })
-      );
-    }
-    setShowRatingModal(false);
+  const handleSubmitRating = (
+    orderId: string,
+    menuItemId: number,
+    rating: number,
+    review: string
+  ) => {
+    dispatch(
+      addMenuItemRating({
+        orderId,
+        menuItemId,
+        rating,
+        review,
+      })
+    );
   };
 
-  const renderStars = (rating) => {
+  const handleReorder = (order: Order) => {
+    order.items.forEach((item) => {
+      dispatch(
+        addToCart({
+          id: Date.now(),
+          menuItemId: item.menuItemId,
+          name: item.name,
+          price: order.total / order.items.length, // Approximate price per item
+          quantity: item.quantity,
+          image: item.image,
+        })
+      );
+    });
+    navigation.navigate("Cart" as never);
+  };
+
+  const renderStars = (rating: number) => {
     return [...Array(5)].map((_, index) => (
       <Ionicons
         key={index}
         name={index < rating ? "star" : "star-outline"}
-        size={20}
+        size={16}
         color="#FFD700"
       />
     ));
   };
 
-  return (
+  return orders.length === 0 ? (
+    <View style={styles.emptyState}>
+      <Ionicons name="sad-outline" size={64} color="#ccc" />
+      <Text style={styles.emptyStateText}>No orders found</Text>
+    </View>
+  ) : (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Orders</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView style={styles.content}>
-        {orders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyStateText}>No orders yet</Text>
-          </View>
-        ) : (
-          orders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderDate}>
-                  {new Date(order.date).toLocaleDateString()}
-                </Text>
-                <OrderStatusBadge status={order.status} />
-              </View>
-
-              <View style={styles.orderItems}>
-                {order.items.map((item, index) => (
-                  <Text key={index} style={styles.orderItem}>
-                    {item.quantity}x {item.name}
-                  </Text>
-                ))}
-              </View>
-
-              <View style={styles.orderDetails}>
-                <Text style={styles.orderType}>
-                  {order.orderType}
-                  {order.deliveryAddress && ` • ${order.deliveryAddress}`}
-                </Text>
-                <Text style={styles.orderTotal}>
-                  Total: ${order.total.toFixed(2)}
-                </Text>
-              </View>
-
-              {order.status === "Delivered" && (
-                <View style={styles.ratingSection}>
-                  {order.rating ? (
-                    <View style={styles.rating}>
-                      <Text style={styles.ratingLabel}>Your Rating:</Text>
-                      <View style={styles.stars}>
-                        {renderStars(order.rating)}
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.rateButton}
-                      onPress={() => handleRateOrder(order)}
-                    >
-                      <Text style={styles.rateButtonText}>Rate Order</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={styles.reorderButton}
-                onPress={() => handleReorder(order)}
-              >
-                <Ionicons name="refresh" size={20} color="#007AFF" />
-                <Text style={styles.reorderButtonText}>Reorder</Text>
-              </TouchableOpacity>
+      <ScrollView>
+        {orders.map((order) => (
+          <View key={order.id} style={styles.orderCard}>
+            <View style={styles.orderHeader}>
+              <OrderStatusBadge status={order.status} />
+              <Text style={styles.orderDate}>
+                {new Date(order.date).toLocaleDateString()}
+              </Text>
             </View>
-          ))
-        )}
+
+            <View style={styles.orderItems}>
+              {order.items.map((item) => {
+                const itemRating = order.menuItemsRatings?.find(
+                  (r) => r.menuItemId === item.menuItemId
+                );
+
+                return (
+                  <View key={item.id} style={styles.orderItem}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>
+                        {item.quantity}x {item.name}
+                      </Text>
+                      {itemRating && (
+                        <View style={styles.ratingContainer}>
+                          {renderStars(itemRating.rating)}
+                          {itemRating.review && (
+                            <Text style={styles.reviewText} numberOfLines={1}>
+                              {itemRating.review}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                    {order.status === "Received" && !itemRating && (
+                      <TouchableOpacity
+                        style={styles.rateButton}
+                        onPress={() => handleRateMenuItem(order.id, item)}
+                      >
+                        <Text style={styles.rateButtonText}>Rate Item</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.orderDetails}>
+              <Text style={styles.orderType}>
+                {order.orderType}
+                {order.deliveryAddress && ` • ${order.deliveryAddress}`}
+              </Text>
+              <Text style={styles.orderTotal}>
+                Total: ${order.total.toFixed(2)}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.reorderButton}
+              onPress={() => handleReorder(order)}
+            >
+              <Ionicons name="refresh" size={20} color="#007AFF" />
+              <Text style={styles.reorderButtonText}>Reorder</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </ScrollView>
 
-      <Modal visible={showRatingModal} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Rate Your Order</Text>
-            <View style={styles.ratingStars}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                  <Ionicons
-                    name={star <= rating ? "star" : "star-outline"}
-                    size={32}
-                    color="#FFD700"
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.feedbackInput}
-              placeholder="Share your feedback (optional)"
-              value={feedback}
-              onChangeText={setFeedback}
-              multiline
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowRatingModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={submitRating}
-              >
-                <Text style={styles.submitButtonText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <RatingModal
+        visible={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onSubmit={handleSubmitRating}
+        orderId={selectedMenuItem?.orderId}
+        menuItem={selectedMenuItem}
+      />
     </SafeAreaView>
   );
 };
@@ -273,8 +353,44 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   orderItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  itemInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemName: {
     fontSize: 14,
+    fontWeight: "500",
     marginBottom: 4,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  rateButton: {
+    backgroundColor: "#007AFF15",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  rateButtonText: {
+    color: "#007AFF",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  reviewText: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: 8,
+    flex: 1,
   },
   orderDetails: {
     flexDirection: "row",
@@ -305,16 +421,6 @@ const styles = StyleSheet.create({
   },
   stars: {
     flexDirection: "row",
-  },
-  rateButton: {
-    backgroundColor: "#f5f5f5",
-    padding: 8,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  rateButtonText: {
-    color: "#007AFF",
-    fontWeight: "500",
   },
   reorderButton: {
     flexDirection: "row",
@@ -352,15 +458,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 16,
   },
-  feedbackInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    height: 100,
-    textAlignVertical: "top",
-    marginBottom: 16,
-  },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -386,6 +483,15 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     fontWeight: "600",
+  },
+  reviewInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 16,
+    height: 100,
+    textAlignVertical: "top",
   },
 });
 

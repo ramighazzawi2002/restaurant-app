@@ -63,7 +63,7 @@ const ProfileScreen = () => {
     }
   };
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (data: any) => {
     try {
       if (data.phone && !/^[0-9-+() ]{10,}$/.test(data.phone)) {
         Alert.alert("Error", "Please enter a valid phone number");
@@ -212,6 +212,49 @@ const ProfileScreen = () => {
           />
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
+          {user?.savedCards?.length > 0 ? (
+            user.savedCards.map((card, index) => (
+              <View key={index} style={styles.savedCard}>
+                <View style={styles.cardInfo}>
+                  <Ionicons name="card-outline" size={24} color="#007AFF" />
+                  <Text style={styles.cardNumber}>
+                    •••• •••• •••• {card.last4}
+                  </Text>
+                  <Text style={styles.cardExpiry}>
+                    Expires {card.expiryDate}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeCard}
+                  onPress={() => {
+                    // Add logic to remove saved card
+                    Alert.alert(
+                      "Remove Card",
+                      "Are you sure you want to remove this card?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Remove",
+                          style: "destructive",
+                          onPress: () => {
+                            // Add remove card action
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noCards}>No saved cards</Text>
+          )}
+        </View>
+
         {isEditing && (
           <View style={styles.buttonContainer}>
             <TouchableOpacity
@@ -318,6 +361,37 @@ const styles = StyleSheet.create({
     color: "red",
     fontSize: 12,
     marginTop: 4,
+  },
+  savedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  cardInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cardNumber: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  cardExpiry: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#666",
+  },
+  removeCard: {
+    padding: 8,
+  },
+  noCards: {
+    color: "#666",
+    fontStyle: "italic",
   },
 });
 

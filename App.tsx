@@ -29,7 +29,7 @@ function TabNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName: string | undefined;
 
           switch (route.name) {
             case "HomeTab":
@@ -100,6 +100,7 @@ function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="Details" component={DetailsScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} />
       {!isAuthenticated ? (
         <>
           <Stack.Screen name="Auth" component={AuthStack} />

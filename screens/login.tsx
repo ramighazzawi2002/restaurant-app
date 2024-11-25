@@ -28,7 +28,7 @@ const LoginScreen = () => {
 
   const [loading, setLoading] = React.useState(false);
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (data: any) => {
     try {
       setLoading(true);
       const user = await login({ email: data.email, password: data.password });

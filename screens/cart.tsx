@@ -86,12 +86,15 @@ const CartScreen = () => {
                   <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
                   {item.selectedSize && (
                     <Text style={styles.itemOption}>
-                      Size: {item.selectedSize}
+                      Size: {item.selectedSize.name}
                     </Text>
                   )}
-                  {item.selectedAddons?.length > 0 && (
+                  {item.selectedAddons && item.selectedAddons.length > 0 && (
                     <Text style={styles.itemOption}>
-                      Add-ons: {item.selectedAddons.join(", ")}
+                      Add-ons:{" "}
+                      {item.selectedAddons
+                        .map((addon) => addon.name)
+                        .join(", ")}
                     </Text>
                   )}
                 </View>
