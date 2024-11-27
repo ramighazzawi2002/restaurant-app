@@ -37,6 +37,7 @@ const SignupScreen = () => {
         email: data.email,
         password: data.password,
         fullName: data.fullName,
+        phone: data.phone,
       });
 
       dispatch(loginAction(user));
@@ -176,6 +177,40 @@ const SignupScreen = () => {
                     {errors.confirmPassword && (
                       <Text style={styles.errorText}>
                         {errors.confirmPassword.message}
+                      </Text>
+                    )}
+                  </>
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="phone"
+                rules={{
+                  required: "Phone number is required",
+                  pattern: {
+                    value: /^\d{10}$/,
+                    message: "Phone number must be exactly 10 digits",
+                  },
+                }}
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Phone Number (10 digits)"
+                      placeholderTextColor="#666"
+                      onBlur={onBlur}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/[^\d]/g, "");
+                        onChange(cleaned.slice(0, 10));
+                      }}
+                      value={value}
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                    />
+                    {errors.phone && (
+                      <Text style={styles.errorText}>
+                        {errors.phone.message}
                       </Text>
                     )}
                   </>

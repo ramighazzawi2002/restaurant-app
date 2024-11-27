@@ -25,7 +25,7 @@ import {
 } from "../store/slices/foodSlice";
 import { getCategories, getFoodItems } from "../services/api/food";
 import { useNavigation } from "@react-navigation/native";
-import { logoutAndClearData } from "../store/slices/authSlice";
+import { logout } from "../store/slices/authSlice";
 
 const HomeScreen = () => {
   const dispatch = useDispatch();
@@ -129,7 +129,7 @@ const HomeScreen = () => {
       {
         text: "Logout",
         onPress: () => {
-          dispatch(logoutAndClearData());
+          dispatch(logout());
           setShowProfileMenu(false);
         },
         style: "destructive",

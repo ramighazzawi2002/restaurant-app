@@ -21,6 +21,7 @@ export interface Order {
   subtotal: number;
   discount: number;
   deliveryAddress?: string;
+  deliveryPrice?: number;
   paymentMethod: "card" | "cash";
   date: string;
   menuItemsRatings?: {

@@ -7,12 +7,14 @@ interface SignupCredentials {
   email: string;
   password: string;
   fullName: string;
+  phone: string;
 }
 
 interface User {
   id: number;
   email: string;
   fullName: string;
+  phone: string;
 }
 
 // Mock user database
@@ -62,13 +64,22 @@ export const signup = async (credentials: SignupCredentials): Promise<User> => {
     email: credentials.email,
     password: credentials.password,
     fullName: credentials.fullName,
+    phone: credentials.phone,
   };
 
   users.push(newUser);
 
+  // Store profile data including phone
+  userProfiles[credentials.email] = {
+    phone: credentials.phone,
+  };
+
   // Don't send password back
   const { password, ...userWithoutPassword } = newUser;
-  return userWithoutPassword;
+  return {
+    ...userWithoutPassword,
+    ...userProfiles[credentials.email],
+  };
 };
 
 export const updateProfile = async (

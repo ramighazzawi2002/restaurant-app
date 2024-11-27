@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +18,9 @@ import { RootState } from "../store";
 import { addOrderRating, addMenuItemRating } from "../store/slices/ordersSlice";
 import { addToCart } from "../store/slices/cartSlice";
 import { useNavigation } from "@react-navigation/native";
+import * as Notifications from "expo-notifications";
+import { setRecommendations } from "../store/slices/recommendationsSlice";
+import { getFoodItems } from "../services/api/food";
 
 interface MenuItem {
   id: number;
@@ -39,6 +43,15 @@ interface Order {
     review?: string;
   }[];
 }
+
+// Configure notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const OrderStatusBadge = ({ status }: { status: string }) => {
   const getStatusColor = () => {
@@ -156,6 +169,85 @@ const OrdersScreen = () => {
     (MenuItem & { orderId: string }) | null
   >(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const recommendations = useSelector(
+    (state: RootState) => state.recommendations.recommendations
+  );
+
+  const getNextStatus = (currentStatus: string) => {
+    const statusProgression = [
+      "Received",
+      "In Preparation",
+      "Ready",
+      "Out for Delivery",
+      "Delivered",
+    ];
+
+    const currentIndex = statusProgression.indexOf(currentStatus);
+    if (currentIndex === -1 || currentIndex === statusProgression.length - 1) {
+      return currentStatus; // Keep current status if it's not in progression or is final
+    }
+
+    return statusProgression[currentIndex + 1];
+  };
+
+  // Add notification request function
+  const scheduleNotification = async (orderId: string, newStatus: string) => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Order Status Update",
+          body: `Order #${orderId.slice(0, 8)} is now ${newStatus}`,
+          data: { orderId },
+        },
+        trigger: null, // Show immediately
+      });
+    } catch (error) {
+      console.log("Error showing notification:", error);
+    }
+  };
+
+  // Request notification permissions on component mount
+  React.useEffect(() => {
+    const requestPermissions = async () => {
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(
+            "Permission Required",
+            "Please enable notifications to receive order updates"
+          );
+        }
+      } catch (error) {
+        console.log("Error requesting notification permissions:", error);
+      }
+    };
+
+    requestPermissions();
+  }, []);
+
+  // Modify the status update effect
+  React.useEffect(() => {
+    const intervalId = setInterval(() => {
+      orders.forEach((order) => {
+        if (order.status !== "Delivered" && order.status !== "Cancelled") {
+          const newStatus = getNextStatus(order.status);
+          if (newStatus !== order.status) {
+            dispatch({
+              type: "orders/updateOrderStatus",
+              payload: {
+                orderId: order.id,
+                status: newStatus,
+              },
+            });
+            // Schedule notification for status change
+            scheduleNotification(order.id, newStatus);
+          }
+        }
+      });
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [orders, dispatch]);
 
   const handleRateMenuItem = (orderId: string, menuItem: MenuItem) => {
     setSelectedMenuItem({ ...menuItem, orderId });
@@ -205,6 +297,132 @@ const OrdersScreen = () => {
     ));
   };
 
+  // Add this function to calculate recommendations
+  const calculateRecommendations = React.useCallback(() => {
+    const itemStats = new Map<
+      number,
+      {
+        menuItemId: number;
+        name: string;
+        timesOrdered: number;
+        lastOrdered: string;
+        ratings: number[];
+      }
+    >();
+
+    // Analyze order history
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        const stats = itemStats.get(item.menuItemId) || {
+          menuItemId: item.menuItemId,
+          name: item.name,
+          timesOrdered: 0,
+          lastOrdered: order.date,
+          ratings: [],
+        };
+
+        stats.timesOrdered += item.quantity;
+        stats.lastOrdered = order.date;
+
+        // Get rating if exists
+        const rating = order.menuItemsRatings?.find(
+          (r) => r.menuItemId === item.menuItemId
+        )?.rating;
+        if (rating) {
+          stats.ratings.push(rating);
+        }
+
+        itemStats.set(item.menuItemId, stats);
+      });
+    });
+
+    // Calculate scores and create recommendations
+    const recommendations = Array.from(itemStats.values()).map((stats) => {
+      const averageRating =
+        stats.ratings.length > 0
+          ? stats.ratings.reduce((a, b) => a + b, 0) / stats.ratings.length
+          : 0;
+
+      // Calculate recency score (higher for more recent orders)
+      const daysSinceLastOrder =
+        (new Date().getTime() - new Date(stats.lastOrdered).getTime()) /
+        (1000 * 60 * 60 * 24);
+      const recencyScore = Math.max(0, 1 - daysSinceLastOrder / 30); // Normalize to 30 days
+
+      // Calculate final score
+      const score =
+        stats.timesOrdered * 0.4 + // Frequency weight
+        averageRating * 0.4 + // Rating weight
+        recencyScore * 0.2; // Recency weight
+
+      return {
+        menuItemId: stats.menuItemId,
+        name: stats.name,
+        score,
+        lastOrdered: stats.lastOrdered,
+        timesOrdered: stats.timesOrdered,
+        averageRating,
+      };
+    });
+
+    // Sort by score and take top recommendations
+    recommendations.sort((a, b) => b.score - a.score);
+    dispatch(setRecommendations(recommendations.slice(0, 5)));
+  }, [orders, dispatch]);
+
+  // Calculate recommendations when orders change
+  React.useEffect(() => {
+    calculateRecommendations();
+  }, [calculateRecommendations]);
+
+  // Modify handleReorderItem function
+  const handleReorderItem = async (menuItemId: number) => {
+    try {
+      // Get all menu items
+      const menuItems = await getFoodItems();
+      // Find the full item details
+      const item = menuItems.find((item) => item.id === menuItemId);
+
+      if (item) {
+        // Navigate to details screen with the full item data
+        navigation.navigate("Details", { item });
+      }
+    } catch (error) {
+      console.error("Error fetching menu item details:", error);
+      Alert.alert("Error", "Could not load item details");
+    }
+  };
+
+  // Add this section to render recommendations
+  const renderRecommendations = () => {
+    if (recommendations.length === 0) return null;
+
+    return (
+      <View style={styles.recommendationsSection}>
+        <Text style={styles.sectionTitle}>Recommended for You</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {recommendations.map((item) => (
+            <TouchableOpacity
+              key={item.menuItemId}
+              style={styles.recommendationCard}
+              onPress={() => handleReorderItem(item.menuItemId)}
+            >
+              <Text style={styles.recommendationName}>{item.name}</Text>
+              <View style={styles.recommendationStats}>
+                <View style={styles.ratingContainer}>
+                  {renderStars(item.averageRating)}
+                </View>
+                <Text style={styles.orderedTimes}>
+                  Ordered {item.timesOrdered} times
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return orders.length === 0 ? (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -229,6 +447,7 @@ const OrdersScreen = () => {
         <View style={{ width: 24 }} />
       </View>
       <ScrollView>
+        {renderRecommendations()}
         {orders.map((order) => (
           <View key={order.id} style={styles.orderCard}>
             <View style={styles.orderHeader}>
@@ -261,7 +480,7 @@ const OrdersScreen = () => {
                         </View>
                       )}
                     </View>
-                    {order.status === "Received" && !itemRating && (
+                    {order.status === "Delivered" && !itemRating && (
                       <TouchableOpacity
                         style={styles.rateButton}
                         onPress={() => handleRateMenuItem(order.id, item)}
@@ -508,6 +727,40 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     height: 100,
     textAlignVertical: "top",
+  },
+  recommendationsSection: {
+    padding: 16,
+    backgroundColor: "#f8f8f8",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  recommendationCard: {
+    backgroundColor: "#fff",
+    padding: 12,
+    marginRight: 12,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    minWidth: 160,
+  },
+  recommendationName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  recommendationStats: {
+    flexDirection: "column",
+    gap: 4,
+  },
+  orderedTimes: {
+    fontSize: 12,
+    color: "#666",
   },
 });
 

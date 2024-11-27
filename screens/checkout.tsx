@@ -19,7 +19,10 @@ import {
 } from "../store/slices/cartSlice";
 import { useNavigation } from "@react-navigation/native";
 import { addOrder } from "../store/slices/ordersSlice";
-import { savePaymentMethod } from "../store/slices/authSlice";
+import {
+  savePaymentMethod,
+  updateUserProfile,
+} from "../store/slices/authSlice";
 
 const CheckoutScreen = () => {
   const dispatch = useDispatch();
@@ -36,6 +39,15 @@ const CheckoutScreen = () => {
     (state: RootState) => state.auth.user?.savedCards || []
   );
   const [selectedSavedCard, setSelectedSavedCard] = useState(null);
+  const [saveDeliveryInfo, setSaveDeliveryInfo] = useState(false);
+  const user = useSelector((state: RootState) => state.auth.user);
+  const DELIVERY_FEE = 5.99;
+
+  React.useEffect(() => {
+    if (user?.address) {
+      setAddress(user.address);
+    }
+  }, [user]);
 
   const formatCardNumber = (text: string) => {
     const cleaned = text.replace(/\s/g, "");
@@ -58,10 +70,23 @@ const CheckoutScreen = () => {
     setCvc("");
   };
 
+  const handleOrderTypeChange = (type: "Dine-in" | "Takeaway" | "Delivery") => {
+    dispatch(setOrderType(type));
+    if (type === "Delivery" && user?.address) {
+      setAddress(user.address);
+    }
+  };
+
   const handlePlaceOrder = () => {
-    if (orderType === "Delivery" && !address) {
-      Alert.alert("Error", "Please enter delivery address");
-      return;
+    if (orderType === "Delivery") {
+      if (!address) {
+        Alert.alert("Error", "Please enter delivery address");
+        return;
+      }
+
+      if (saveDeliveryInfo) {
+        dispatch(updateUserProfile({ address }));
+      }
     }
 
     if (selectedPayment === "card") {
@@ -80,11 +105,6 @@ const CheckoutScreen = () => {
             })
           );
         }
-      } else {
-        if (!cvc) {
-          Alert.alert("Error", "Please enter CVC");
-          return;
-        }
       }
     }
 
@@ -93,10 +113,11 @@ const CheckoutScreen = () => {
       items,
       orderType,
       status: "Received",
-      total,
+      total: orderType === "Delivery" ? total + DELIVERY_FEE : total,
       subtotal,
       discount,
       deliveryAddress: address,
+      deliveryPrice: orderType === "Delivery" ? DELIVERY_FEE : 0,
       paymentMethod: selectedPayment,
       date: new Date().toISOString(),
     };
@@ -138,7 +159,7 @@ const CheckoutScreen = () => {
                   styles.orderTypeButton,
                   orderType === type && styles.selectedOrderType,
                 ]}
-                onPress={() => dispatch(setOrderType(type))}
+                onPress={() => handleOrderTypeChange(type)}
               >
                 <Text
                   style={[
@@ -167,6 +188,22 @@ const CheckoutScreen = () => {
               }}
               multiline
             />
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkbox}
+                onPress={() => setSaveDeliveryInfo(!saveDeliveryInfo)}
+              >
+                {saveDeliveryInfo && (
+                  <Ionicons name="checkmark" size={16} color="#007AFF" />
+                )}
+              </TouchableOpacity>
+              <Text style={styles.checkboxLabel}>
+                Save this address for future orders
+              </Text>
+            </View>
+            <Text style={styles.deliveryFee}>
+              Delivery Fee: ${DELIVERY_FEE.toFixed(2)}
+            </Text>
           </View>
         )}
 
@@ -277,19 +314,13 @@ const CheckoutScreen = () => {
                   </TouchableOpacity>
                 </>
               ) : (
-                <View style={styles.savedCardCvcContainer}>
-                  <Text style={styles.savedCardCvcLabel}>
-                    Enter CVC for saved card
+                <View style={styles.savedCardInfo}>
+                  <Text style={styles.savedCardLabel}>
+                    Using saved card ending in {selectedSavedCard.last4}
                   </Text>
-                  <TextInput
-                    style={[styles.input, styles.cvcInput]}
-                    placeholder="CVC"
-                    value={cvc}
-                    onChangeText={setCvc}
-                    maxLength={3}
-                    keyboardType="numeric"
-                    secureTextEntry
-                  />
+                  <Text style={styles.savedCardExpiry}>
+                    Expires {selectedSavedCard.expiryDate}
+                  </Text>
                 </View>
               )}
             </View>
@@ -334,9 +365,23 @@ const CheckoutScreen = () => {
               </Text>
             </View>
           )}
+          {orderType === "Delivery" && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Delivery Fee</Text>
+              <Text style={styles.summaryValue}>
+                ${DELIVERY_FEE.toFixed(2)}
+              </Text>
+            </View>
+          )}
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>
+              $
+              {(orderType === "Delivery"
+                ? total + DELIVERY_FEE
+                : total
+              ).toFixed(2)}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -347,7 +392,10 @@ const CheckoutScreen = () => {
           onPress={handlePlaceOrder}
         >
           <Text style={styles.placeOrderButtonText}>
-            Place Order - ${total.toFixed(2)}
+            Place Order - $
+            {(orderType === "Delivery" ? total + DELIVERY_FEE : total).toFixed(
+              2
+            )}
           </Text>
         </TouchableOpacity>
       </View>
@@ -496,6 +544,7 @@ const styles = StyleSheet.create({
   },
   cardDetails: {
     marginTop: 16,
+    marginBottom: 16,
   },
   cardRow: {
     flexDirection: "row",
@@ -571,18 +620,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  savedCardCvcContainer: {
-    marginTop: 16,
-    alignItems: "center",
+  savedCardInfo: {
+    backgroundColor: "#f8f8f8",
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 8,
   },
-  savedCardCvcLabel: {
+  savedCardLabel: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 4,
+  },
+  savedCardExpiry: {
     fontSize: 14,
     color: "#666",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#666",
+  },
+  deliveryFee: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#666",
+    fontStyle: "italic",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
-  cvcInput: {
-    width: "30%",
-    textAlign: "center",
+  totalRow: {
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  totalText: {
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  totalAmount: {
+    fontWeight: "600",
+    fontSize: 16,
+    color: "#007AFF",
   },
 });
 
