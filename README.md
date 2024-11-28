@@ -60,5 +60,14 @@ The Restaurant App is a mobile application built with React Native and Expo. It 
    - Add items to your favorites list
    - Rate and review menu items
 
+## Notifications
+The app uses notifications to update users about order status changes. Notifications are sent when the status of an order changes, such as when an order is received, in preparation, ready, out for delivery, or delivered.
+
+### Enabling Notifications
+To enable notifications for the app, follow these steps:
+1. Ensure that the `expo-notifications` plugin is configured in `app.json`.
+2. Request notification permissions when the app is first launched.
+3. Handle notifications in the app to display updates to the user.
+
 ## License
 This project is licensed under the 0BSD License.
