@@ -3,7 +3,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 interface UserProfile {
   fullName: string;
   email: string;
-  phone?: string;
+  phone: string;
   address?: string;
   defaultPaymentMethod?: string;
 }
@@ -14,9 +14,6 @@ interface SavedCard {
   last4: string;
 }
 
-interface User {
-  savedCards?: SavedCard[];
-}
 
 interface AuthState {
   isAuthenticated: boolean;
