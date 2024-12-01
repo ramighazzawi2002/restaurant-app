@@ -98,7 +98,6 @@ function AppNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="Details" component={DetailsScreen} />
       <Stack.Screen name="Home" component={HomeScreen} />
       {!isAuthenticated ? (
@@ -107,6 +106,7 @@ function AppNavigator() {
         </>
       ) : (
         <>
+          <Stack.Screen name="MainTabs" component={TabNavigator} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
           <Stack.Screen name="Checkout" component={CheckoutScreen} />
           <Stack.Screen name="Orders" component={OrdersScreen} />
