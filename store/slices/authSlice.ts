@@ -6,16 +6,14 @@ interface UserProfile {
   phone?: string;
   address?: string;
   defaultPaymentMethod?: string;
+  savedCards?: SavedCard[];
 }
 
 interface SavedCard {
+  id?: string;
   cardNumber: string;
   expiryDate: string;
   last4: string;
-}
-
-interface User {
-  savedCards?: SavedCard[];
 }
 
 interface AuthState {

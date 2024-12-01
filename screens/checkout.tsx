@@ -18,7 +18,7 @@ import {
   setOrderType,
 } from "../store/slices/cartSlice";
 import { useNavigation } from "@react-navigation/native";
-import { addOrder } from "../store/slices/ordersSlice";
+import { addOrder, Order } from "../store/slices/ordersSlice";
 import {
   savePaymentMethod,
   updateUserProfile,
@@ -29,12 +29,15 @@ const CheckoutScreen = () => {
   const navigation = useNavigation();
   const { items, subtotal, discount, total, orderType, deliveryAddress } =
     useSelector((state: RootState) => state.cart);
-  const [selectedPayment, setSelectedPayment] = useState("card");
+  const [selectedPayment, setSelectedPayment] = useState<"card" | "cash">(
+    "card"
+  );
   const [address, setAddress] = useState(deliveryAddress || "");
   const [cardNumber, setCardNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [cvc, setCvc] = useState("");
   const [saveCard, setSaveCard] = useState(false);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   const savedCards = useSelector(
     (state: RootState) => state.auth.user?.savedCards || []
   );
@@ -49,24 +52,54 @@ const CheckoutScreen = () => {
     }
   }, [user]);
 
+  const validateCardNumber = (number: string) => {
+    const cleaned = number.replace(/\s/g, '');
+    return cleaned.length === 16 && /^\d+$/.test(cleaned);
+  };
+
+  const validateExpiryDate = (date: string) => {
+    const [month, year] = date.split('/');
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear() % 100; // Get last 2 digits
+    const currentMonth = currentDate.getMonth() + 1; // Months are 0-indexed
+
+    // Check format
+    if (!/^\d{2}\/\d{2}$/.test(date)) return false;
+    
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    // Validate month is 1-12
+    if (monthNum < 1 || monthNum > 12) return false;
+
+    // Check if card is expired
+    if (yearNum < currentYear || (yearNum === currentYear && monthNum < currentMonth)) {
+      return false;
+    }
+
+    return true;
+  };
+
   const formatCardNumber = (text: string) => {
-    const cleaned = text.replace(/\s/g, "");
-    const groups = cleaned.match(/.{1,4}/g);
-    return groups ? groups.join(" ") : cleaned;
+    const cleaned = text.replace(/\s/g, ""); // Remove all spaces
+    if (cleaned.length > 16) return cardNumber; // Don't allow more than 16 digits
+    const groups = cleaned.match(/.{1,4}/g); // Create groups of 4 characters
+    return groups ? groups.join(" ") : cleaned; // Join groups with space
   };
 
   const formatExpiryDate = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
+    const cleaned = text.replace(/\D/g, ""); // Remove all non-numeric characters
+    if (cleaned.length > 4) return expiryDate; // Don't allow more than 4 digits
     if (cleaned.length >= 2) {
-      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}`;
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}`; // Add a slash after the first 2 characters
     }
     return cleaned;
   };
 
-  const handleSavedCardSelect = (card) => {
+  const handleSavedCardSelect = (card: any) => {
     setSelectedSavedCard(card);
-    setCardNumber(`•••• •••• •••• ${card.last4}`);
-    setExpiryDate(card.expiryDate);
+    setCardNumber(`•••• •••• •••• ${card.last4}`); // Mask card number
+    setExpiryDate(card.expiryDate); // Set expiry date
     setCvc("");
   };
 
@@ -96,19 +129,29 @@ const CheckoutScreen = () => {
           return;
         }
 
-        if (saveCard) {
-          dispatch(
-            savePaymentMethod({
-              cardNumber: cardNumber.replace(/\s/g, ""),
-              expiryDate,
-              last4: cardNumber.slice(-4),
-            })
-          );
+        // Validate card number
+        if (!validateCardNumber(cardNumber)) {
+          Alert.alert("Error", "Please enter a valid 16-digit card number");
+          return;
+        }
+
+        // Validate expiry date
+        if (!validateExpiryDate(expiryDate)) {
+          Alert.alert("Error", "Please enter a valid expiry date (MM/YY) that hasn't expired");
+          return;
+        }
+
+        // Validate CVC
+        if (!/^\d{3,4}$/.test(cvc)) {
+          Alert.alert("Error", "Please enter a valid CVC (3 or 4 digits)");
+          return;
         }
       }
+    } else if (saveAsDefault) {
+      dispatch(updateUserProfile({ defaultPaymentMethod: 'cash' }));
     }
 
-    const newOrder = {
+    const newOrder: Order = {
       id: Date.now().toString(),
       items,
       orderType,
@@ -294,7 +337,7 @@ const CheckoutScreen = () => {
                       placeholder="CVC"
                       value={cvc}
                       onChangeText={setCvc}
-                      maxLength={3}
+                      maxLength={4}
                       keyboardType="numeric"
                       secureTextEntry
                     />
@@ -336,6 +379,17 @@ const CheckoutScreen = () => {
           >
             <Ionicons name="cash-outline" size={24} color="#333" />
             <Text style={styles.paymentText}>Cash on Delivery</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.saveOption}
+            onPress={() => setSaveAsDefault(!saveAsDefault)}
+          >
+            <View style={styles.checkboxContainer}>
+              <View style={[styles.checkbox, saveAsDefault && styles.checked]}>
+                {saveAsDefault && <Ionicons name="checkmark" size={16} color="#fff" />}
+              </View>
+              <Text style={styles.saveText}>Save as default payment method</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -640,7 +694,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-
   checkboxLabel: {
     fontSize: 14,
     color: "#666",
@@ -651,25 +704,21 @@ const styles = StyleSheet.create({
     color: "#666",
     fontStyle: "italic",
   },
-  summaryRow: {
+  saveOption: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
     marginBottom: 8,
   },
-  totalRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-    paddingTop: 8,
-    marginTop: 8,
+  saveText: {
+    fontSize: 14,
+    color: "#333",
   },
-  totalText: {
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  totalAmount: {
-    fontWeight: "600",
-    fontSize: 16,
-    color: "#007AFF",
+  checked: {
+    backgroundColor: "#007AFF",
   },
 });
 

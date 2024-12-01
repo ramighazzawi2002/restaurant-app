@@ -83,6 +83,8 @@ const cartSlice = createSlice({
           state.discount = promoCode.discount;
         }
         state.total = state.subtotal - state.discount;
+      } else {
+        alert("Invalid Promo Code");
       }
     },
     removePromoCode: (state) => {

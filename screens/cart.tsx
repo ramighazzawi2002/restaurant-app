@@ -46,6 +46,8 @@ const CartScreen = () => {
     if (promoInput) {
       dispatch(applyPromoCode(promoInput));
       setPromoInput("");
+    } else {
+      alert("Please enter a promo code");
     }
   };
 

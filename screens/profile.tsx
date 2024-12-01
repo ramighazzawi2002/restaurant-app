@@ -193,23 +193,48 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Preferences</Text>
-
-          <Controller
-            control={control}
-            name="defaultPaymentMethod"
-            render={({ field: { onChange, value } }) => (
-              <View style={styles.field}>
-                <Text style={styles.label}>Default Payment Method</Text>
-                <TextInput
-                  style={[styles.input, !isEditing && styles.disabledInput]}
-                  value={value}
-                  onChangeText={onChange}
-                  editable={isEditing}
-                />
-              </View>
-            )}
-          />
+          <Text style={styles.sectionTitle}>Default Payment Method</Text>
+          {isEditing ? (
+            <Controller
+              control={control}
+              name="defaultPaymentMethod"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.paymentOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.paymentOption,
+                      value === 'card' && styles.selectedPayment,
+                    ]}
+                    onPress={() => onChange('card')}
+                  >
+                    <Ionicons name="card-outline" size={24} color="#333" />
+                    <Text style={styles.paymentText}>Card</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.paymentOption,
+                      value === 'cash' && styles.selectedPayment,
+                    ]}
+                    onPress={() => onChange('cash')}
+                  >
+                    <Ionicons name="cash-outline" size={24} color="#333" />
+                    <Text style={styles.paymentText}>Cash</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          ) : (
+            <View style={styles.infoRow}>
+              <Ionicons
+                name={user?.defaultPaymentMethod === 'card' ? "card-outline" : "cash-outline"}
+                size={24}
+                color="#333"
+              />
+              <Text style={styles.infoText}>
+                {user?.defaultPaymentMethod === 'card' ? 'Card' : 'Cash'}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -239,7 +264,16 @@ const ProfileScreen = () => {
                           text: "Remove",
                           style: "destructive",
                           onPress: () => {
-                            // Add remove card action
+                            // Add logic to remove saved card
+                            const updatedCards = user.savedCards.filter(
+                              (c) => c.id !== card.id
+                            );
+                            dispatch(
+                              updateUserProfile({
+                                ...user,
+                                savedCards: updatedCards,
+                              })
+                            );
                           },
                         },
                       ]
@@ -392,6 +426,40 @@ const styles = StyleSheet.create({
   noCards: {
     color: "#666",
     fontStyle: "italic",
+  },
+  paymentOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  paymentOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginHorizontal: 5,
+  },
+  selectedPayment: {
+    borderColor: '#007AFF',
+    backgroundColor: '#F0F8FF',
+  },
+  paymentText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#333',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  infoText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#333',
   },
 });
 
