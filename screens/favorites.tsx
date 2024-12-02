@@ -23,6 +23,28 @@ const FavoritesScreen = () => {
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.isAuthenticated
   );
+  const orders = useSelector((state: RootState) => state.orders.orders);
+
+  const getItemReviews = (menuItemId: number) => {
+    const reviews: { rating: number; review?: string }[] = [];
+    orders.forEach((order) => {
+      order.menuItemsRatings?.forEach((rating) => {
+        if (rating.menuItemId === menuItemId) {
+          reviews.push({
+            rating: rating.rating,
+            review: rating.review,
+          });
+        }
+      });
+    });
+    return reviews;
+  };
+
+  const calculateAverageRating = (reviews: { rating: number }[]) => {
+    if (reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, curr) => acc + curr.rating, 0);
+    return (sum / reviews.length).toFixed(1);
+  };
 
   const handleAddToCart = (item) => {
     if (!isAuthenticated) {
@@ -99,8 +121,16 @@ const FavoritesScreen = () => {
                 <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
                 <View style={styles.ratingContainer}>
                   <Ionicons name="star" size={16} color="#FFD700" />
-                  <Text style={styles.rating}>{item.rating}</Text>
-                  <Text style={styles.reviews}>({item.reviews})</Text>
+                  {(() => {
+                    const itemReviews = getItemReviews(item.id);
+                    const averageRating = calculateAverageRating(itemReviews);
+                    return (
+                      <>
+                        <Text style={styles.rating}>{averageRating}</Text>
+                        <Text style={styles.reviews}>({itemReviews.length})</Text>
+                      </>
+                    );
+                  })()}
                 </View>
               </View>
               <View style={styles.actions}>
